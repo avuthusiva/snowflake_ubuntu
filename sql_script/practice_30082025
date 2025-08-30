@@ -1,0 +1,99 @@
+use role accountadmin;
+use warehouse my_warehouse;
+use schema my_db.procedure_practice;
+show procedures in my_db.procedure_practice;
+create or replace procedure my_db.procedure_practice.one_to_one_views(p_db_name string,p_schema_name string)
+returns string
+language sql
+as
+declare
+    v_sql string;
+    v_table_name resultset;
+    v_table_script string := '';
+    v_table_union_script string := '';
+    v_count int := 1;
+    v_ddl resultset;
+begin
+    v_sql := 'select table_name from information_schema.tables 
+              where table_type = ''BASE TABLE'' 
+              and table_schema = ''' || p_schema_name || ''' 
+              and table_catalog = ''' || p_db_name || '''';
+    v_table_name := (execute immediate :v_sql);
+    for tab in v_table_name
+    loop
+        IF (v_count = 1) 
+        THEN
+            v_table_union_script := 'create or replace view ' || p_db_name || '.' || p_schema_name || '.VW_' 
+                                || tab.table_name || ' as \nselect * from ' 
+                                || p_db_name || '.' || p_schema_name || '.' || tab.table_name || ';';
+            
+        ELSE
+            v_table_union_script := v_table_union_script || '\ncreate or replace view ' || 
+            p_db_name || '.' || p_schema_name || '.vw_' 
+                                || tab.table_name || ' as \nselect * from ' || p_db_name || '.' || 
+                                p_schema_name || '.' || tab.table_name || ';';
+        END IF;
+        v_count := v_count + 1;
+    end loop;
+    --execute immediate :v_table_union_script;    
+    return v_table_union_script;
+end;
+
+call my_db.procedure_practice.one_to_one_views('MY_DB','GITHUB_SCHEMA');
+use database my_db;
+show views in GITHUB_SCHEMA;
+show tables in GITHUB_SCHEMA;
+
+create or replace procedure my_db.procedure_practice.pr_drop_views(p_db_name string,p_schema_name string)
+returns string
+language sql
+as
+declare
+    v_sql string;
+    v_table_name resultset;
+    v_table_script string := '';
+    v_cnt int := 1;
+begin
+    v_sql := 'select table_name from information_schema.views 
+              where table_schema = ''' || :p_schema_name || ''' 
+              and table_catalog = ''' || :p_db_name || '''';
+    v_table_name := (execute immediate :v_sql);
+    for tab in v_table_name
+    loop
+        if (v_cnt = 1)
+        then
+            v_table_script := 'drop view if exists ' || p_db_name || '.' || p_schema_name || '.' || tab.table_name || ';';
+        else
+            v_table_script := v_table_script || '\ndrop view if exists ' || p_db_name || '.' || p_schema_name || '.' || tab.table_name || ';';
+        end if;
+        v_cnt := v_cnt + 1;
+    end loop;
+    execute immediate :v_table_script;
+    return v_table_script;
+end;
+
+call my_db.procedure_practice.pr_drop_views('MY_DB','GITHUB_SCHEMA');
+select * from information_schema.views where table_schema='GITHUB_SCHEMA';
+
+execute immediate
+$$
+declare
+    v_db_name string := 'MY_DB';
+    v_schema_name string := 'GITHUB_SCHEMA';
+    v_script string := '';
+    v_res resultset;
+    v_drop string := '';
+begin
+    v_script := 'select table_name from information_schema.views 
+              where table_catalog = ''' || v_db_name || '''
+                and table_schema = ''' || v_schema_name || '''';
+    v_res := (execute immediate :v_script);
+    for res in v_res
+    loop
+        v_drop := 'drop view if exists ' || v_db_name || '.' || v_schema_name || '.' || res.table_name || ';';
+        execute immediate :v_drop;
+    end loop;
+    return 'Views dropped successfully';
+end;
+$$;
+

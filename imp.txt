@@ -1,0 +1,3 @@
+https://signup.snowflake.com/?trial=student
+
+snowsql -a VYLRAHU-UG05883 -u asvr410
